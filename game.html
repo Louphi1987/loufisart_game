@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Loufisartgame - La pierre</title>
+  <style>
+  :root {
+    --W: 500px;
+    --H: 500px;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: #111;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    color: #ddd;
+    font-family: system-ui, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .wrapper {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    place-items: center;
+  }
+
+  .scale-holder {
+    transform-origin: top left;
+    position: relative;
+  }
+
+  #game-area {
+    width: var(--W);
+    height: var(--H);
+    background-image: url('carte.png');
+    background-size: 100% 100%;
+    position: relative;
+    border: 4px solid #444;
+    overflow: hidden;
+  }
+
+  .character {
+    position: absolute;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    will-change: transform;
+  }
+
+  #player {
+    width: 50px;
+    height: 50px;
+    background-image: url('personnage.png');
+  }
+
+  #bandit {
+    width: 70px;
+    height: 70px;
+    background-image: url('bandits.png');
+  }
+
+  /* --- Brouillard de guerre --- */
+  #fog {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 6; /* au-dessus de la carte et des sprites */
+    pointer-events: none;
+  }
+
+  /* Overlays debug */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  #collision-preview {
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+
+  #collision-preview.on { opacity: .85; }
+
+  #axes {
+    opacity: 0;
+    transition: opacity .15s;
+  }
+
+  #axes.on { opacity: .9; }
+
+  #legend {
+    margin-top: .5rem;
+    opacity: .8;
+    font-size: .9rem;
+    text-align: center;
+  }
+
+  /* Modals */
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  .modal {
+    width: min(420px, 92%);
+    background: #1f1f1f;
+    color: #eee;
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 18px 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+  }
+
+  .modal h3 {
+    margin: 0 0 8px;
+    font-size: 1.15rem;
+  }
+
+  .modal p {
+    margin: .5rem 0 1rem;
+    line-height: 1.3;
+  }
+
+  .modal .actions {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+  }
+
+  .btn {
+    appearance: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    background: #2e2e2e;
+    color: #eee;
+  }
+
+  .btn.primary { background: #2b6cb0; }
+
+  .btn[href] {
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn:focus {
+    outline: 2px solid #6ca0ff;
+    outline-offset: 2px;
+  }
+
+  .show { display: flex !important; }
+
+  /* --- D-pad mobile --- */
+  #mobile-controls {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 5;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .pad {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    border: 1px solid #444;
+    background: #222;
+    color: #eee;
+    font-size: 22px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (pointer: fine) {
+    #mobile-controls { display: none !important; }
+  }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div id="scale-holder" class="scale-holder">
+      <div id="game-area">
+        <div id="player" class="character" aria-label="joueur"></div>
+        <div id="bandit" class="character" aria-label="bandit"></div>
+
+        <!-- Canvas du brouillard -->
+        <canvas id="fog" width="500" height="500"></canvas>
+
+        <!-- Overlays -->
+        <canvas id="collision-preview" class="overlay" width="500" height="500"></canvas>
+        <canvas id="axes" class="overlay" width="500" height="500"></canvas>
+
+        <!-- WIN MODAL -->
+        <div id="win-wrap" class="modal-backdrop" role="dialog" aria-modal="true">
+          <div class="modal">
+            <h3>Congratulations!</h3>
+            <p>
+              You found the stone before the bandits caught you — you win!<br/>
+              Click below to read the comic for free on the website.
+            </p>
+            <div class="actions">
+              <a class="btn primary" target="_blank" href="https://louphi1987.github.io/Site_de_Louphi/">Visit the site</a>
+              <button id="win-cancel" class="btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOSE MODAL -->
+        <div id="lose-wrap" class="modal-backdrop" role="dialog" aria-modal="true">
+          <div class="modal">
+            <h3>You are trapped!</h3>
+            <p>Try again!</p>
+            <div class="actions">
+              <button id="lose-restart" class="btn primary">Restart</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- D-pad mobile -->
+        <div id="mobile-controls">
+          <button class="pad" data-key="ArrowLeft">◀</button>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button class="pad" data-key="ArrowUp">▲</button>
+            <button class="pad" data-key="ArrowDown">▼</button>
+          </div>
+          <button class="pad" data-key="ArrowRight">▶</button>
+        </div>
+      </div>
+
+      <div id="legend">
+        Arrows = Move • Find the stone without getting caught by the bandits!
+      </div>
+    </div>
+  </div>
+
+<script>
+  // --- Mise à l'échelle responsive ---
+  const holder = document.getElementById('scale-holder');
+  function fit(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const scale = Math.min(vw/500, (vh)/560);
+    holder.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  const player  = document.getElementById('player');
+  const bandit  = document.getElementById('bandit');
+  const game    = document.getElementById('game-area');
+
+  const preview = document.getElementById('collision-preview');
+  const pctx    = preview.getContext('2d', { willReadFrequently:true });
+
+  // Modals
+  const winWrap  = document.getElementById('win-wrap');
+  const winCancel= document.getElementById('win-cancel');
+  const loseWrap = document.getElementById('lose-wrap');
+  const loseBtn  = document.getElementById('lose-restart');
+
+  const AREA_W = game.clientWidth, AREA_H = game.clientHeight;
+  const PLAYER_W = player.clientWidth, PLAYER_H = player.clientHeight;
+  const BANDIT_W = bandit.clientWidth, BANDIT_H = bandit.clientHeight;
+
+  const SPAWN = { x: 48, y: 88 };
+  const PATROL = { x1: 180, x2: 360, y: 430 };
+  const GOAL = { x: 450, y: 365, w: 46, h: 110 };
+
+  const playerSpeed = 3.5;
+  const banditSpeed = 2;
+  const whiteThreshold = 200;
+
+  let x = SPAWN.x, y = SPAWN.y;
+  const clamp = (v,a,b)=>Math.max(a,Math.min(v,b));
+
+  const targetLeft  = ()=> clamp(PATROL.x1 - BANDIT_W/2, 0, AREA_W - BANDIT_W);
+  const targetRight = ()=> clamp(PATROL.x2 - BANDIT_W/2, 0, AREA_W - BANDIT_W);
+  const targetY     = ()=> clamp(PATROL.y  - BANDIT_H/2, 0, AREA_H - BANDIT_H);
+
+  let bx = targetLeft(), by = targetY(), bdir = 1;
+
+  const keys = new Set();
+  let pixels = null, stride = AREA_W * 4;
+  let gamePaused = false;
+
+  // --- Brouillard de guerre ---
+  const fog = document.getElementById('fog');
+  const fctx = fog.getContext('2d');
+  fog.width = AREA_W;
+  fog.height = AREA_H;
+  const fogColor = 'rgba(0, 0, 0, 0.95)';
+  const revealRadius = 80;
+
+  function drawFog(){
+    const cx = x + PLAYER_W/2;
+    const cy = y + PLAYER_H/2;
+    const gradient = fctx.createRadialGradient(cx, cy, 0, cx, cy, revealRadius);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, fogColor);
+
+    fctx.globalCompositeOperation = 'destination-out';
+    fctx.beginPath();
+    fctx.fillStyle = gradient;
+    fctx.arc(cx, cy, revealRadius, 0, Math.PI*2);
+    fctx.fill();
+    fctx.globalCompositeOperation = 'source-over';
+  }
+
+  fctx.fillStyle = fogColor;
+  fctx.fillRect(0,0,AREA_W,AREA_H);
+
+  // --- Contrôles tactiles ---
+  const pads = document.querySelectorAll('.pad');
+  function press(k){ keys.add(k); }
+  function release(k){ keys.delete(k); }
+  pads.forEach(btn=>{
+    const k = btn.dataset.key;
+    btn.addEventListener('touchstart', e=>{ e.preventDefault(); if(!gamePaused) press(k); }, {passive:false});
+    btn.addEventListener('touchend', e=>{ e.preventDefault(); release(k); }, {passive:false});
+  });
+
+  // --- Charger carte de collision ---
+  const collImg = new Image();
+  collImg.crossOrigin = 'anonymous';
+  collImg.src = 'carte-collision.png';
+  collImg.onload = () => {
+    pctx.clearRect(0,0,AREA_W,AREA_H);
+    pctx.drawImage(collImg, 0, 0, AREA_W, AREA_H);
+    try {
+      const img = pctx.getImageData(0,0,AREA_W,AREA_H);
+      pixels = img.data; stride = AREA_W * 4;
+    } catch(e){ pixels = null; }
+    requestAnimationFrame(loop);
+  };
+
+  // --- Fonctions de collision ---
+  function isWhitePixel(px, py){
+    if (px<0||py<0||px>=AREA_W||py>=AREA_H) return false;
+    if (!pixels) return true;
+    const i=(py|0)*stride+(px|0)*4;
+    const r=pixels[i], g=pixels[i+1], b=pixels[i+2], a=pixels[i+3];
+    return (r>=whiteThreshold && g>=whiteThreshold && b>=whiteThreshold && a>0);
+  }
+  function rectWalkable(nx, ny, w, h){
+    const pts = [
+      [nx+2, ny+2], [nx+w-3, ny+2], [nx+2, ny+h-3], [nx+w-3, ny+h-3],
+      [nx+w/2, ny+2], [nx+w/2, ny+h-3], [nx+2, ny+h/2], [nx+w-3, ny+h/2],
+      [nx+w/2, ny+h/2]
+    ];
+    for (const [px,py] of pts) if (!isWhitePixel(px,py)) return false;
+    return true;
+  }
+  function tryMoveRect(curX, curY, w, h, oldX, oldY){
+    if (rectWalkable(curX, curY, w, h)) return [curX, curY];
+    if (rectWalkable(curX, oldY, w, h)) return [curX, oldY];
+    if (rectWalkable(oldX, curY, w, h)) return [oldX, curY];
+    return [oldX, oldY];
+  }
+  function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // --- Clavier ---
+  document.addEventListener('keydown', e=>{
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+      e.preventDefault(); if(!gamePaused) keys.add(e.key);
+    }
+  });
+  document.addEventListener('keyup', e=>keys.delete(e.key));
+
+  // --- Fermeture modals ---
+  winCancel.addEventListener('click', ()=>{ winWrap.classList.remove('show'); gamePaused=false; requestAnimationFrame(loop); });
+  loseBtn.addEventListener('click', ()=>{
+    loseWrap.classList.remove('show');
+    x = SPAWN.x; y = SPAWN.y;
+    player.style.transform = `translate(${x}px, ${y}px)`;
+    fctx.fillStyle = fogColor; fctx.fillRect(0,0,AREA_W,AREA_H); // remet le brouillard
+    gamePaused=false; requestAnimationFrame(loop);
+  });
+
+  // --- Boucle ---
+  let last = performance.now();
+  function loop(now){
+    if (gamePaused) return;
+    const dt = Math.min(32, now-last); last = now;
+
+    let nx = x, ny = y;
+    if (keys.has('ArrowUp')) ny -= playerSpeed;
+    if (keys.has('ArrowDown')) ny += playerSpeed;
+    if (keys.has('ArrowLeft')) nx -= playerSpeed;
+    if (keys.has('ArrowRight')) nx += playerSpeed;
+    nx = clamp(nx, 0, AREA_W-PLAYER_W);
+    ny = clamp(ny, 0, AREA_H-PLAYER_H);
+    [x,y] = tryMoveRect(nx, ny, PLAYER_W, PLAYER_H, x, y);
+    player.style.transform = `translate(${x}px, ${y}px)`;
+
+    // Victoire ?
+    if (rectsOverlap(x,y,PLAYER_W,PLAYER_H, GOAL.x,GOAL.y,GOAL.w,GOAL.h)){
+      winWrap.classList.add('show'); gamePaused=true;
+      return;
+    }
+
+    // Bandit
+    const L = targetLeft(), R = targetRight(), TY = targetY();
+    by = TY;
+    let nbx = bx + bdir * banditSpeed;
+    [bx, by] = tryMoveRect(nbx, by, BANDIT_W, BANDIT_H, bx, by);
+    if (bdir > 0 && bx >= R - 1) { bx = R; bdir = -1; }
+    if (bdir < 0 && bx <= L + 1) { bx = L; bdir = 1; }
+    if (!rectWalkable(bx, by, BANDIT_W, BANDIT_H)) { bdir *= -1; }
+    bandit.style.transform = `translate(${bx}px, ${by}px)`;
+
+    // Défaite ?
+    if (rectsOverlap(x,y,PLAYER_W,PLAYER_H, bx,by,BANDIT_W,BANDIT_H)){
+      loseWrap.classList.add('show'); gamePaused=true;
+      return;
+    }
+
+    drawFog(); // Met à jour le brouillard
+    requestAnimationFrame(loop);
+  }
+
+  player.style.transform = `translate(${x}px, ${y}px)`;
+  bandit.style.transform = `translate(${bx}px, ${by}px)`;
+</script>
+</body>
+</html>
