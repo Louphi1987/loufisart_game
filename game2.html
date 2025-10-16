@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mini Game — Roland</title>
+<style>
+  :root {
+    --ui-bg:#0e0e11;--ui-fg:#e9e9ef;--accent:#e53935;
+  }
+  html,body{height:100%;margin:0;background:var(--ui-bg);color:var(--ui-fg);font-family:ui-sans-serif,system-ui;}
+  .wrap{min-height:100%;display:grid;place-items:center;gap:12px;padding:12px;position:relative;}
+  canvas{image-rendering:pixelated;box-shadow:0 10px 30px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.05) inset;border-radius:16px;background:#000;max-width:95vw;max-height:80vh;}
+  .hud{display:flex;gap:12px;align-items:center;opacity:.9;flex-wrap:wrap;}
+  .badge{padding:6px 10px;background:#1a1a22;border-radius:12px;font-size:13px}
+  .msg,.centerMsg{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    padding:12px 20px;border-radius:14px;background:rgba(0,0,0,0.8);
+    color:white;font-weight:bold;font-size:22px;text-align:center;
+    display:none;pointer-events:none;
+  }
+  .victoryBox,.defeatBox{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.85);color:white;padding:24px;border-radius:18px;
+    text-align:center;max-width:360px;display:none;
+    box-shadow:0 0 30px rgba(0,0,0,0.6);
+  }
+  .victoryBox h2,.defeatBox h2{margin:0 0 12px;font-size:22px;}
+  .victoryBox p,.defeatBox p{font-size:15px;margin-bottom:18px;}
+  .victoryBox button,.defeatBox button{
+    background:#1f1f28;border:none;color:white;
+    border-radius:10px;padding:8px 14px;cursor:pointer;margin:0 6px;
+  }
+  .victoryBox button:hover,.defeatBox button:hover{filter:brightness(1.15);}
+  footer{font-size:13px;opacity:0.7;margin-top:8px;}
+
+  /* --- Touch Controls Mobile --- */
+  #touchControls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 100;
+  }
+  #touchControls .row {
+    display: flex;
+    gap: 10px;
+  }
+  #touchControls button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #1f1f28;
+    color: white;
+    font-size: 24px;
+    border: none;
+    user-select: none;
+    touch-action: none;
+  }
+  #touchControls button:active {
+    filter: brightness(1.2);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <div id="lives" class="badge">💉 0/3</div>
+  </div>
+  <canvas id="game"></canvas>
+  <div id="toast" class="msg"></div>
+  <div id="centerMsg" class="centerMsg"></div>
+  <div id="victoryBox" class="victoryBox">
+    <h2>🎉 Congratulations, you made it!!</h2>
+    <p>If you want to read Roland’s story,<br>feel free to visit the website to read the comic for free!</p>
+    <button id="visitBtn">Visit the website</button>
+    <button id="cancelBtn">Cancel</button>
+  </div>
+  <div id="defeatBox" class="defeatBox">
+    <h2>😱 You are trapped!</h2>
+    <p>Try again?</p>
+    <button id="yesBtn">Yes</button>
+    <button id="noBtn">No</button>
+  </div>
+
+  <!-- Touch Controls for mobile -->
+  <div id="touchControls">
+    <button data-dir="up">⬆</button>
+    <div class="row">
+      <button data-dir="left">⬅</button>
+      <button data-dir="down">⬇</button>
+      <button data-dir="right">➡</button>
+    </div>
+  </div>
+
+  <footer>Arrows to move. Find the trap before Roland catches you!</footer>
+</div>
+
+<audio id="bgMusic" loop>
+  <source src="horror-background.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+(()=>{
+  const canvas=document.getElementById("game"),ctx=canvas.getContext("2d",{alpha:false});
+  ctx.imageSmoothingEnabled=false;
+
+  const ASSETS={
+    map:"carte2.png",mapCollision:"carte_collision2.png",mapLocked:"carte_locked.png",
+    hero:{up:"personnage_dos.png",down:"personnage_face.png",left:"personnage_gauche.png",right:"personnage_droite.png"},
+    roland:{up:"Roland_dos.png",down:"Roland_face.png",left:"Roland_gauche.png",right:"Roland_droite.png"},
+    syringe:"seringue.png"
+  };
+
+  const IM={};
+  const loadImage=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(src);i.src=src+"?v="+Date.now();});
+
+  const HERO_SIZE=50,ROLAND_SIZE=60,MAP_W=750,MAP_H=1000,SPEED=2.5,ROLAND_SPEED=2.2,SYRINGE_SIZE=80,TRAP_DISTANCE=45;
+  let keys=new Set(),colCtx,lockCtx,showLockedUntil=0,lockedDoorPos=null;
+  let hero={x:0,y:0,dir:"down",w:0,h:0,lives:0,startX:0,startY:0},
+      roland={x:40,y:40,dir:"down",w:0,h:0,timer:0},
+      syringes=[];
+  const centerMsg=document.getElementById("centerMsg");
+
+  const now=()=>performance.now(),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const toast=(txt,ms=1200)=>{const el=document.getElementById("toast");el.textContent=txt;el.style.display="block";setTimeout(()=>el.style.display="none",ms);};
+  const showCenter=(txt,ms=1500)=>{centerMsg.textContent=txt;centerMsg.style.display="block";setTimeout(()=>centerMsg.style.display="none",ms);};
+  const updateLives=()=>{document.getElementById("lives").textContent=`💉 ${hero.lives}/3`;};
+
+  const sampleIsBlack=(ctx,x,y)=>{if(x<0||y<0||x>=ctx.canvas.width||y>=ctx.canvas.height)return true;
+    const d=ctx.getImageData(Math.floor(x),Math.floor(y),1,1).data;return d[0]<25&&d[1]<25&&d[2]<25&&d[3]>10;};
+  const collideMask=(ctxMask,nx,ny,w,h)=>[[nx,ny+h-4],[nx+w,ny+h-4],[nx,ny+h/2],[nx+w,ny+h/2],[nx+w/2,ny+h-2]].some(([sx,sy])=>sampleIsBlack(ctxMask,sx,sy));
+
+  function tryMove(ent,vx,vy,isHero){
+    if(vx===0&&vy===0)return;
+    let nx=ent.x+vx,ny=ent.y;
+    if(!collideMask(colCtx,nx,ny,ent.w,ent.h)){
+      if(!collideMask(lockCtx,nx,ny,ent.w,ent.h))ent.x=nx;
+      else if(isHero){showLockedUntil=now()+700;lockedDoorPos={x:nx+ent.w/2,y:ny+ent.h/2};}
+    }
+    nx=ent.x;ny=ent.y+vy;
+    if(!collideMask(colCtx,nx,ny,ent.w,ent.h)){
+      if(!collideMask(lockCtx,nx,ny,ent.w,ent.h))ent.y=ny;
+      else if(isHero){showLockedUntil=now()+700;lockedDoorPos={x:nx+ent.w/2,y:ny+ent.h/2};}
+    }
+    ent.x=clamp(ent.x,0,canvas.width-ent.w);ent.y=clamp(ent.y,0,canvas.height-ent.h);
+  }
+
+  const chooseRolandDir=()=>{const dirs=["up","down","left","right"];roland.dir=dirs[Math.floor(Math.random()*dirs.length)];roland.timer=1500+Math.random()*2000;};
+  const placeSyringes=(n=3)=>{
+      syringes=[];
+      for(let i=0;i<n;i++){
+        let x, y;
+        do {x = Math.random() * (MAP_W - SYRINGE_SIZE);y = Math.random() * (MAP_H - SYRINGE_SIZE);}
+        while(collideMask(colCtx, x, y, SYRINGE_SIZE, SYRINGE_SIZE) || collideMask(lockCtx, x, y, SYRINGE_SIZE, SYRINGE_SIZE));
+        syringes.push({x, y, w:SYRINGE_SIZE, h:SYRINGE_SIZE, active:true});
+      }
+    }
+  const resetPositions = () => {
+    hero.x = MAP_W - hero.w - 40;
+    hero.y = MAP_H - hero.h - 40;
+    hero.startX = hero.x;
+    hero.startY = hero.y;
+
+    const margin = 180; 
+    roland.x = margin + Math.random() * (MAP_W - 2 * margin - roland.w);
+    roland.y = margin + Math.random() * (MAP_H - 2 * margin - roland.h);
+
+    chooseRolandDir();
+  };
+  const teleportRoland = () => {
+    const margin = 120; 
+    const corner = Math.floor(Math.random() * 4); // 0=haut gauche, 1=haut droite, 2=bas gauche, 3=bas droite
+
+    switch (corner) {
+      case 0: // haut gauche
+        roland.x = margin;
+        roland.y = margin;
+        break;
+      case 1: // haut droite
+        roland.x = MAP_W - ROLAND_SIZE - margin;
+        roland.y = margin;
+        break;
+      case 2: // bas gauche
+        roland.x = margin;
+        roland.y = MAP_H - ROLAND_SIZE - margin;
+        break;
+  
+    }
+  };
+
+  // Detect device and setup touch buttons
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if(isTouchDevice){
+    document.getElementById("touchControls").style.display="flex";
+    document.querySelectorAll("#touchControls button").forEach(btn=>{
+      const arrow = "Arrow" + btn.dataset.dir.charAt(0).toUpperCase() + btn.dataset.dir.slice(1);
+      btn.addEventListener("touchstart", e=>{e.preventDefault(); keys.add(arrow);});
+      btn.addEventListener("touchend", e=>{e.preventDefault(); keys.delete(arrow);});
+    });
+  }
+
+  // Keyboard input
+  window.addEventListener("keydown",e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();keys.add(e.key);}});
+  window.addEventListener("keyup",e=>keys.delete(e.key));
+
+  let last=performance.now();
+  let gameOver = false;
+  function frame(t){
+    const dt=t-last;last=t;
+    let vx=0,vy=0;
+    if(keys.has("ArrowUp")){vy-=SPEED;hero.dir="up";}
+    if(keys.has("ArrowDown")){vy+=SPEED;hero.dir="down";}
+    if(keys.has("ArrowLeft")){vx-=SPEED;hero.dir="left";}
+    if(keys.has("ArrowRight")){vx+=SPEED;hero.dir="right";}
+    tryMove(hero,vx,vy,true);
+
+    roland.timer-=dt;if(roland.timer<=0)chooseRolandDir();
+    let rvx=0,rvy=0;if(roland.dir==="up")rvy-=ROLAND_SPEED;if(roland.dir==="down")rvy+=ROLAND_SPEED;if(roland.dir==="left")rvx-=ROLAND_SPEED;if(roland.dir==="right")rvx+=ROLAND_SPEED;
+    const oldX=roland.x,oldY=roland.y;tryMove(roland,rvx,rvy,false);if(Math.hypot(roland.x-oldX,roland.y-oldY)<0.5)roland.timer=0;
+
+    for(const s of syringes){if(s.active && hero.x<s.x+s.w && hero.x+hero.w>s.x && hero.y<s.y+s.h && hero.y+hero.h>s.y){s.active=false;if(hero.lives<3){hero.lives++;showCenter("Life drug!",1000);}updateLives();}}
+
+    const dx=(hero.x+hero.w/2)-(roland.x+roland.w/2),dy=(hero.y+hero.h/2)-(roland.y+roland.h/2),dist=Math.hypot(dx,dy);
+    if(dist<TRAP_DISTANCE){
+      if(hero.lives>0){hero.lives--;updateLives();showCenter("Trapped! One drug used!",1500);hero.x=hero.startX;hero.y=hero.startY;teleportRoland();}
+      else {
+        document.getElementById("defeatBox").style.display = "block";
+        gameOver = true; 
+      }
+    }
+
+    const center={x:MAP_W/2-80,y:MAP_H/2};
+    if(Math.hypot(hero.x+hero.w/2-center.x,hero.y+hero.h/2-center.y)<45){document.getElementById("victoryBox").style.display="block";}
+    gameOver = true;
+    
+    ctx.clearRect(0,0,MAP_W,MAP_H);
+    ctx.drawImage(IM.map,0,0,MAP_W,MAP_H);
+    for(const s of syringes)if(s.active)ctx.drawImage(IM.syringe,s.x,s.y,s.w,s.h);
+    const heroImg={up:IM.heroUp,down:IM.heroDown,left:IM.heroLeft,right:IM.heroRight}[hero.dir];
+    const rolImg={up:IM.rolUp,down:IM.rolDown,left:IM.rolLeft,right:IM.rolRight}[roland.dir];
+    ctx.drawImage(rolImg,roland.x,roland.y,roland.w,roland.h);
+    ctx.drawImage(heroImg,hero.x,hero.y,hero.w,hero.h);
+
+    if(showLockedUntil>now() && lockedDoorPos){
+      ctx.font="20px sans-serif";
+      ctx.fillStyle="red";
+      ctx.textAlign="center";
+      ctx.fillText("Locked door",lockedDoorPos.x,lockedDoorPos.y-20);
+    }
+
+    const fogRadius=130;
+    const grad=ctx.createRadialGradient(hero.x+hero.w/2,hero.y+hero.h/2,fogRadius*0.3,hero.x+hero.w/2,hero.y+hero.h/2,fogRadius);
+    grad.addColorStop(0,"rgba(0,0,0,0)");
+    grad.addColorStop(1,"rgba(0,0,0,1)");
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,MAP_W,MAP_H);
+
+    requestAnimationFrame(frame);
+  }
+
+  (async function boot(){
+    IM.map=await loadImage(ASSETS.map);
+    canvas.width=MAP_W;canvas.height=MAP_H;
+    [IM.heroUp,IM.heroDown,IM.heroLeft,IM.heroRight,IM.rolUp,IM.rolDown,IM.rolLeft,IM.rolRight,IM.syringe,IM.col,IM.lock]=await Promise.all([
+      loadImage(ASSETS.hero.up),loadImage(ASSETS.hero.down),loadImage(ASSETS.hero.left),loadImage(ASSETS.hero.right),
+      loadImage(ASSETS.roland.up),loadImage(ASSETS.roland.down),loadImage(ASSETS.roland.left),loadImage(ASSETS.roland.right),
+      loadImage(ASSETS.syringe),loadImage(ASSETS.mapCollision),loadImage(ASSETS.mapLocked)
+    ]);
+    const colCanvas=document.createElement("canvas"),lockCanvas=document.createElement("canvas");
+    colCanvas.width=lockCanvas.width=MAP_W;colCanvas.height=lockCanvas.height=MAP_H;
+    colCtx=colCanvas.getContext("2d");lockCtx=lockCanvas.getContext("2d");
+    colCtx.drawImage(IM.col,0,0,MAP_W,MAP_H);lockCtx.drawImage(IM.lock,0,0,MAP_W,MAP_H);
+    hero.h=HERO_SIZE;hero.w=Math.round(IM.heroDown.width*(HERO_SIZE/IM.heroDown.height));
+    roland.h=ROLAND_SIZE;roland.w=Math.round(IM.rolDown.width*(ROLAND_SIZE/IM.rolDown.height));
+    resetPositions();placeSyringes(3);updateLives();requestAnimationFrame(frame);
+    toast("Ready!",900);
+    document.getElementById("bgMusic").play().catch(()=>{});
+  })();
+
+  document.getElementById("visitBtn").addEventListener("click", () => {
+    bgMusic.pause(); // stop music on victory
+    window.open("https://louphi1987.github.io/Site_de_Louphi/", "_blank");
+    document.getElementById("victoryBox").style.display = "none";
+  });
+
+  document.getElementById("cancelBtn").addEventListener("click", () => {
+    bgMusic.pause(); // stop music if player closes victory box
+    document.getElementById("victoryBox").style.display = "none";
+  });
+
+  document.getElementById("yesBtn").addEventListener("click", () => {
+    location.reload(); // will replay music automatically on reload
+  });
+
+  document.getElementById("noBtn").addEventListener("click", () => {
+    bgMusic.pause(); // stop music on defeat
+    document.getElementById("defeatBox").style.display = "none";
+  });
+})();
+</script>
+</body>
+</html>
