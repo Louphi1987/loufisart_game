@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -110,7 +110,7 @@
   ctx.imageSmoothingEnabled=false;
 
   const ASSETS={
-    map:"carte2.png",mapCollision:"carte_collision2.png",mapLocked:"carte_locked.png",
+    map:"carte2.png",mapCollision:"carte_collision2.png",mapLocked:"carte_locked.png",mapPath:"Roland_path.png",  
     hero:{up:"personnage_dos.png",down:"personnage_face.png",left:"personnage_gauche.png",right:"personnage_droite.png"},
     roland:{up:"Roland_dos.png",down:"Roland_face.png",left:"Roland_gauche.png",right:"Roland_droite.png"},
     syringe:"seringue.png"
@@ -120,7 +120,7 @@
   const loadImage=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(src);i.src=src+"?v="+Date.now();});
 
   const HERO_SIZE=50,ROLAND_SIZE=60,MAP_W=750,MAP_H=1000,SPEED=2.5,ROLAND_SPEED=2.2,SYRINGE_SIZE=80,TRAP_DISTANCE=45;
-  let keys=new Set(),colCtx,lockCtx,showLockedUntil=0,lockedDoorPos=null;
+  let keys=new Set(),colCtx,lockCtx,pathCtx,showLockedUntil=0,lockedDoorPos=null;
   let hero={x:0,y:0,dir:"down",w:0,h:0,lives:0,startX:0,startY:0},
       roland={x:40,y:40,dir:"down",w:0,h:0,timer:0},
       syringes=[];
@@ -134,7 +134,14 @@
   const sampleIsBlack=(ctx,x,y)=>{if(x<0||y<0||x>=ctx.canvas.width||y>=ctx.canvas.height)return true;
     const d=ctx.getImageData(Math.floor(x),Math.floor(y),1,1).data;return d[0]<25&&d[1]<25&&d[2]<25&&d[3]>10;};
   const collideMask=(ctxMask,nx,ny,w,h)=>[[nx,ny+h-4],[nx+w,ny+h-4],[nx,ny+h/2],[nx+w,ny+h/2],[nx+w/2,ny+h-2]].some(([sx,sy])=>sampleIsBlack(ctxMask,sx,sy));
-
+  function isPathPixel(x, y){
+    if(!pathCtx) return true; // au tout début du chargement
+    if(x<0||y<0||x>=MAP_W||y>=MAP_H) return false;
+    const d = pathCtx.getImageData(x|0, y|0, 1, 1).data;
+    // Noir = chemin (tolérance simple)
+    return d[0] < 50 && d[1] < 50 && d[2] < 50 && d[3] > 10;
+  }
+  
   function tryMove(ent,vx,vy,isHero){
     if(vx===0&&vy===0)return;
     let nx=ent.x+vx,ny=ent.y;
@@ -166,9 +173,24 @@
     hero.startX = hero.x;
     hero.startY = hero.y;
 
+    // --- Roland : essaie de se placer sur le tracé noir ---
     const margin = 180; 
-    roland.x = margin + Math.random() * (MAP_W - 2 * margin - roland.w);
-    roland.y = margin + Math.random() * (MAP_H - 2 * margin - roland.h);
+    let placed = false;
+    for (let i = 0; i < 10000 && !placed; i++) {
+      const rx = margin + Math.random() * (MAP_W - 2 * margin - roland.w);
+      const ry = margin + Math.random() * (MAP_H - 2 * margin - roland.h);
+      if (isPathPixel(rx + roland.w / 2, ry + roland.h / 2)) {
+        roland.x = rx;
+        roland.y = ry;
+        placed = true;
+      }
+    }
+
+    if (!placed) {
+      console.warn("⚠️ Roland n’a pas trouvé de tracé, placement par défaut.");
+      roland.x = margin + Math.random() * (MAP_W - 2 * margin - roland.w);
+      roland.y = margin + Math.random() * (MAP_H - 2 * margin - roland.h);
+    }
 
     chooseRolandDir();
   };
@@ -219,9 +241,43 @@
     if(keys.has("ArrowRight")){vx+=SPEED;hero.dir="right";}
     tryMove(hero,vx,vy,true);
 
-    roland.timer-=dt;if(roland.timer<=0)chooseRolandDir();
-    let rvx=0,rvy=0;if(roland.dir==="up")rvy-=ROLAND_SPEED;if(roland.dir==="down")rvy+=ROLAND_SPEED;if(roland.dir==="left")rvx-=ROLAND_SPEED;if(roland.dir==="right")rvx+=ROLAND_SPEED;
-    const oldX=roland.x,oldY=roland.y;tryMove(roland,rvx,rvy,false);if(Math.hypot(roland.x-oldX,roland.y-oldY)<0.5)roland.timer=0;
+    roland.timer -= dt;
+    if (roland.timer <= 0) chooseRolandDir();
+
+    let rvx=0, rvy=0;
+    if (roland.dir==="up")    rvy -= ROLAND_SPEED;
+    if (roland.dir==="down")  rvy += ROLAND_SPEED;
+    if (roland.dir==="left")  rvx -= ROLAND_SPEED;
+    if (roland.dir==="right") rvx += ROLAND_SPEED;
+
+    // centre approximatif de Roland
+    const cx = roland.x + (roland.w>>1);
+    const cy = roland.y + (roland.h>>1);
+
+    // teste le prochain pas : s'il sort du tracé, change de direction
+    let nx = roland.x + rvx;
+    let ny = roland.y + rvy;
+
+    if (isPathPixel((nx + (roland.w>>1))|0, (ny + (roland.h>>1))|0)) {
+      // ok: avance
+      tryMove(roland, rvx, rvy, false);
+    } else {
+      // essaie jusqu'à 6 nouvelles directions au hasard
+      let tries=6, moved=false;
+      while(tries-- > 0 && !moved){
+        chooseRolandDir();
+        rvx=rvy=0;
+        if (roland.dir==="up")    rvy -= ROLAND_SPEED;
+        if (roland.dir==="down")  rvy += ROLAND_SPEED;
+        if (roland.dir==="left")  rvx -= ROLAND_SPEED;
+        if (roland.dir==="right") rvx += ROLAND_SPEED;
+        nx = roland.x + rvx; ny = roland.y + rvy;
+        if (isPathPixel((nx + (roland.w>>1))|0, (ny + (roland.h>>1))|0)) {
+          tryMove(roland, rvx, rvy, false);
+          moved = true;
+        }
+      }
+    }
 
     for(const s of syringes){if(s.active && hero.x<s.x+s.w && hero.x+hero.w>s.x && hero.y<s.y+s.h && hero.y+hero.h>s.y){s.active=false;if(hero.lives<3){hero.lives++;showCenter("Life drug!",1000);}updateLives();}}
 
@@ -266,18 +322,38 @@
   (async function boot(){
     IM.map=await loadImage(ASSETS.map);
     canvas.width=MAP_W;canvas.height=MAP_H;
-    [IM.heroUp,IM.heroDown,IM.heroLeft,IM.heroRight,IM.rolUp,IM.rolDown,IM.rolLeft,IM.rolRight,IM.syringe,IM.col,IM.lock]=await Promise.all([
+
+    [IM.heroUp,IM.heroDown,IM.heroLeft,IM.heroRight,
+     IM.rolUp,IM.rolDown,IM.rolLeft,IM.rolRight,
+     IM.syringe,IM.col,IM.lock,IM.path] = await Promise.all([
       loadImage(ASSETS.hero.up),loadImage(ASSETS.hero.down),loadImage(ASSETS.hero.left),loadImage(ASSETS.hero.right),
       loadImage(ASSETS.roland.up),loadImage(ASSETS.roland.down),loadImage(ASSETS.roland.left),loadImage(ASSETS.roland.right),
-      loadImage(ASSETS.syringe),loadImage(ASSETS.mapCollision),loadImage(ASSETS.mapLocked)
+      loadImage(ASSETS.syringe),loadImage(ASSETS.mapCollision),loadImage(ASSETS.mapLocked),
+      loadImage(ASSETS.mapPath) 
     ]);
-    const colCanvas=document.createElement("canvas"),lockCanvas=document.createElement("canvas");
-    colCanvas.width=lockCanvas.width=MAP_W;colCanvas.height=lockCanvas.height=MAP_H;
-    colCtx=colCanvas.getContext("2d");lockCtx=lockCanvas.getContext("2d");
-    colCtx.drawImage(IM.col,0,0,MAP_W,MAP_H);lockCtx.drawImage(IM.lock,0,0,MAP_W,MAP_H);
-    hero.h=HERO_SIZE;hero.w=Math.round(IM.heroDown.width*(HERO_SIZE/IM.heroDown.height));
-    roland.h=ROLAND_SIZE;roland.w=Math.round(IM.rolDown.width*(ROLAND_SIZE/IM.rolDown.height));
-    resetPositions();placeSyringes(3);updateLives();requestAnimationFrame(frame);
+
+    const colCanvas=document.createElement("canvas"),
+          lockCanvas=document.createElement("canvas"),
+          pathCanvas=document.createElement("canvas"); 
+
+    colCanvas.width=lockCanvas.width=pathCanvas.width=MAP_W;
+    colCanvas.height=lockCanvas.height=pathCanvas.height=MAP_H;
+
+    colCtx = colCanvas.getContext("2d");
+    lockCtx= lockCanvas.getContext("2d");
+    pathCtx= pathCanvas.getContext("2d");             
+
+    colCtx.drawImage(IM.col,  0,0,MAP_W,MAP_H);
+    lockCtx.drawImage(IM.lock,0,0,MAP_W,MAP_H);
+    pathCtx.drawImage(IM.path,0,0,MAP_W,MAP_H);      
+
+    hero.h=HERO_SIZE; hero.w=Math.round(IM.heroDown.width*(HERO_SIZE/IM.heroDown.height));
+    roland.h=ROLAND_SIZE; roland.w=Math.round(IM.rolDown.width*(ROLAND_SIZE/IM.rolDown.height));
+
+    resetPositions();
+    placeSyringes(3);
+    updateLives();
+    requestAnimationFrame(frame);
     toast("Ready!",900);
     document.getElementById("bgMusic").play().catch(()=>{});
   })();
