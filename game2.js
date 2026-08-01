@@ -3,8 +3,8 @@ const COLS = 16;
 const ROWS = 14;
 
 const FLOOR_NAMES = [
-  "Rez-de-chaussée",
-  "Premier étage",
+  "Rez-de-chaussee",
+  "Premier etage",
   "Toit technique",
 ];
 
@@ -179,7 +179,7 @@ const BASE_PICKUP_SPAWNS = {
 };
 
 const HAUNTING_MESSAGES = [
-  "Un néon hurle au-dessus de toi.",
+  "Un neons hurle au-dessus de toi.",
   "Quelque chose gratte dans les gaines.",
   "L'air se refroidit brusquement.",
   "Des pas glissent dans l'escalier.",
@@ -187,7 +187,7 @@ const HAUNTING_MESSAGES = [
 ];
 
 const START_TEXT =
-  "Récupère les trois seringues, monte jusqu'au toit et garde Roland hors de portée.";
+  "Recupere les trois seringues, monte jusqu'au toit et garde Roland hors de portee.";
 
 const PICKUP_FLOOR_TILES = new Set([".", "d"]);
 const LAYOUT_VARIANTS = [
@@ -874,6 +874,73 @@ function showMessage(text, tone = "info", duration = 2.6) {
   messageBoxEl.className = `message-box ${tone}`;
 }
 
+function isTouchUiActive() {
+  if (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches) {
+    return true;
+  }
+  return window.innerWidth <= 760;
+}
+
+function getInteractionContext() {
+  if (!state.running) {
+    return {
+      label: "Entrer",
+      buttonClass: "",
+      hint: "Touche pour entrer dans l'immeuble",
+      tileType: "",
+    };
+  }
+
+  const tile = worldToTile(state.player.x, state.player.y - 18);
+  const currentTile = getTile(state.player.floor, tile.col, tile.row);
+  const touchLabel = isTouchUiActive() ? "Touche" : "Appuie sur E";
+  const foundPickups = state.pickups.filter((pickup) => pickup.found).length;
+  const allPickupsFound = foundPickups === state.pickups.length;
+
+  if (currentTile === "U") {
+    return {
+      label: "Monter",
+      buttonClass: "ready",
+      hint: `${touchLabel} pour monter l'escalier`,
+      tileType: "U",
+    };
+  }
+
+  if (currentTile === "N") {
+    return {
+      label: "Descendre",
+      buttonClass: "ready",
+      hint: `${touchLabel} pour descendre l'escalier`,
+      tileType: "N",
+    };
+  }
+
+  if (currentTile === "E") {
+    return {
+      label: allPickupsFound ? "Sortir" : "Sortie",
+      buttonClass: allPickupsFound ? "ready exit-ready" : "ready",
+      hint: allPickupsFound
+        ? `${touchLabel} pour ouvrir la porte du toit`
+        : "La porte du toit reste fermee sans toutes les seringues",
+      tileType: "E",
+    };
+  }
+
+  return {
+    label: isTouchUiActive() ? "Tap" : "Interagir",
+    buttonClass: "",
+    hint: "",
+    tileType: "",
+  };
+}
+
+function updateInteractButton() {
+  const context = getInteractionContext();
+  interactButtonEl.textContent = context.label;
+  interactButtonEl.className = `action-button${context.buttonClass ? ` ${context.buttonClass}` : ""}`;
+  interactButtonEl.setAttribute("aria-label", context.hint || context.label);
+}
+
 function updateHud() {
   const foundPickups = state.pickups.filter((pickup) => pickup.found).length;
   pickupCountEl.textContent = `${foundPickups} / ${state.pickups.length}`;
@@ -890,7 +957,7 @@ function updateHud() {
   }
 
   if (foundPickups === state.pickups.length) {
-    objectiveTextEl.textContent = "La sortie du toit est ouverte. Trouve-là avant que Roland te rattrape.";
+    objectiveTextEl.textContent = "La sortie du toit est ouverte. Trouve-la avant que Roland te rattrape.";
   } else {
     objectiveTextEl.textContent = `Recupere les seringues (${foundPickups}/${state.pickups.length}) puis gagne le toit.`;
   }
@@ -898,6 +965,8 @@ function updateHud() {
   floorCards.forEach((card) => {
     card.classList.toggle("active", Number(card.dataset.floor) === state.player.floor);
   });
+
+  updateInteractButton();
 }
 
 function startGame() {
@@ -927,10 +996,10 @@ function finishGame(win) {
   if (win) {
     playTone({ type: "sine", frequency: 420, frequencyEnd: 620, gain: 0.035, decay: 0.48 });
     audioState.soundtrack.volume = 0.1;
-    showMessage("Tu as quitté l'immeuble. Roland hurle dans l'escalier derrière toi.", "success", 8);
+    showMessage("Tu as quitte l'immeuble. Roland hurle dans l'escalier derriere toi.", "success", 8);
     showOverlay(
-      "Tu as survécu",
-      "Les trois seringues sont en ta possession. Le toit s'est finalement ouvert et Roland est resté prisonnier dans la cage d'escalier.",
+      "Tu as survecu",
+      "Les trois seringues sont en ta possession. Le toit s'est finalement ouvert et Roland est reste prisonnier dans la cage d'escalier.",
       "Rejouer",
       {
         storyHref: "https://loufisart.netlify.app/",
@@ -942,8 +1011,8 @@ function finishGame(win) {
     audioState.soundtrack.volume = 0.06;
     showMessage("You are trapped! Try again!", "alert", 8);
     showOverlay(
-      "Roland t'a trouvé",
-      "Ton souffle s'arrête net dans le couloir. Reprends depuis le hall et tente une autre route.",
+      "Roland t'a trouve",
+      "Ton souffle s'arrete net dans le couloir. Reprends depuis le hall et tente une autre route.",
       "Rejouer",
     );
   }
@@ -973,7 +1042,7 @@ function attemptInteract() {
     if (foundPickups === state.pickups.length) {
       finishGame(true);
     } else {
-      showMessage("La porte du toit résiste encore. Il manque des seringues.", "alert", 2.8);
+      showMessage("La porte du toit resiste encore. Il manque des seringues.", "alert", 2.8);
     }
   }
 }
@@ -994,7 +1063,7 @@ function movePlayerToFloor(nextFloor) {
   updateExploration();
   updateHud();
   playStairCreak();
-  showMessage(`Tu changes d'étage. ${FLOOR_NAMES[nextFloor]}.`, "info", 2.2);
+  showMessage(`Tu changes d'etage. ${FLOOR_NAMES[nextFloor]}.`, "info", 2.2);
 }
 
 function loop(timestamp) {
@@ -1018,7 +1087,7 @@ function update(delta) {
   if (state.message.timer > 0) {
     state.message.timer -= delta;
     if (state.message.timer <= 0) {
-      showMessage("Ecoute l'immeuble. Roland écoute aussi.", "info", 1.6);
+      showMessage("Ecoute l'immeuble. Roland ecoute aussi.", "info", 1.6);
       state.message.timer = 0;
     }
   }
@@ -1127,7 +1196,7 @@ function shiftRolandFloorTowardPlayer() {
 
   if (nextFloor === state.player.floor) {
     playDoorSlam(0.72);
-    showMessage("Des pas grincent dans l'escalier. Roland a changé d'étage.", "alert", 2.6);
+    showMessage("Des pas grincent dans l'escalier. Roland a change d'etage.", "alert", 2.6);
   }
 }
 
@@ -1787,6 +1856,7 @@ function render() {
   }
   drawPlayerAura();
   drawPlayerAvatar(state.player);
+  drawTouchNavigationMarkers();
   drawInteractionHints();
   drawFloorLabel();
 }
@@ -1943,17 +2013,8 @@ function drawAmbientHaze() {
 }
 
 function drawInteractionHints() {
-  const tile = worldToTile(state.player.x, state.player.y - 18);
-  const currentTile = getTile(state.player.floor, tile.col, tile.row);
-  let text = "";
-
-  if (currentTile === "U") {
-    text = "Appuie sur E pour monter";
-  } else if (currentTile === "N") {
-    text = "Appuie sur E pour descendre";
-  } else if (currentTile === "E") {
-    text = "Appuie sur E pour ouvrir la porte du toit";
-  }
+  const context = getInteractionContext();
+  const text = context.hint;
 
   if (!text) {
     return;
@@ -1967,6 +2028,77 @@ function drawInteractionHints() {
   ctx.textAlign = "center";
   ctx.fillText(text, canvas.width / 2, canvas.height - 31);
   ctx.restore();
+}
+
+function getTouchNavigationMarkers() {
+  const markers = [];
+  if (state.player.floor === 0) {
+    markers.push({ ...markerCache.stairs["0-up"], type: "up" });
+  } else if (state.player.floor === 1) {
+    markers.push({ ...markerCache.stairs["1-down"], type: "down" });
+    markers.push({ ...markerCache.stairs["1-up"], type: "up" });
+  } else if (state.player.floor === 2) {
+    markers.push({ ...markerCache.stairs["2-down"], type: "down" });
+  }
+  return markers;
+}
+
+function drawTouchNavigationMarkers() {
+  if (!isTouchUiActive()) {
+    return;
+  }
+
+  const playerTile = worldToTile(state.player.x, state.player.y - 18);
+  const explored = state.explored[state.player.floor];
+
+  getTouchNavigationMarkers().forEach((marker, index) => {
+    const base = tileToWorld(marker.col, marker.row);
+    const seen = explored[marker.row]?.[marker.col] > 0;
+    const visibility = computeVisionLevel(base.x, base.y - 12);
+    if (!seen && visibility < 0.14) {
+      return;
+    }
+
+    const pulse = (Math.sin(performance.now() / 260 + index * 0.6) + 1) / 2;
+    const active = playerTile.col === marker.col && playerTile.row === marker.row;
+
+    ctx.save();
+    ctx.translate(base.x, base.y - 22 + Math.sin(performance.now() / 340 + index) * 1.4);
+    ctx.globalAlpha = active ? 0.96 : seen ? 0.54 + pulse * 0.08 : 0.82;
+    ctx.fillStyle = marker.type === "up" ? "rgba(118, 196, 210, 0.18)" : "rgba(186, 198, 214, 0.14)";
+    ctx.strokeStyle = active ? "#f7efd3" : marker.type === "up" ? "#9bd6df" : "#c7cfda";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 15 + pulse * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    if (marker.type === "up") {
+      ctx.moveTo(-6, 4);
+      ctx.lineTo(0, -4);
+      ctx.lineTo(6, 4);
+      ctx.moveTo(-6, 10);
+      ctx.lineTo(0, 2);
+      ctx.lineTo(6, 10);
+    } else {
+      ctx.moveTo(-6, -4);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(6, -4);
+      ctx.moveTo(-6, 2);
+      ctx.lineTo(0, 10);
+      ctx.lineTo(6, 2);
+    }
+    ctx.stroke();
+
+    if (active) {
+      ctx.fillStyle = "rgba(247, 239, 211, 0.9)";
+      ctx.font = '10px "Gill Sans"';
+      ctx.textAlign = "center";
+      ctx.fillText("TAP", 0, -20);
+    }
+    ctx.restore();
+  });
 }
 
 function drawExplorationFog() {
@@ -2137,7 +2269,7 @@ loadImages()
   .catch((error) => {
     showOverlay(
       "Chargement impossible",
-      "Le décor s'est bien préparé, mais un élément du jeu n'a pas pu être chargé. Vérifie les fichiers du dossier.",
+      "Le decor s'est bien prepare, mais un element du jeu n'a pas pu etre charge. Verifie les fichiers du dossier Mix.",
       "Reessayer",
     );
     showMessage(error.message, "alert", 8);
