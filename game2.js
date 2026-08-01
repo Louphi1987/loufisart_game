@@ -187,7 +187,7 @@ const HAUNTING_MESSAGES = [
 ];
 
 const START_TEXT =
-  "Recupere les trois seringues, monte jusqu'au toit et garde Roland hors de portee.";
+  "Recupere les seringues (0/3) puis gagne le toit.";
 
 const PICKUP_FLOOR_TILES = new Set([".", "d"]);
 const LAYOUT_VARIANTS = [
@@ -283,6 +283,10 @@ const state = {
   message: {
     text: START_TEXT,
     tone: "info",
+    timer: 0,
+  },
+  objective: {
+    text: START_TEXT,
     timer: 0,
   },
   pickups: [],
@@ -764,7 +768,8 @@ function resetGame() {
   state.explored = createExplorationState();
   updateExploration();
 
-  showMessage(START_TEXT, "info", 4);
+  flashObjective(START_TEXT, 2);
+  showMessage("Roland est quelque part dans les etages.", "info", 2.4);
   updateHud();
   render();
 }
@@ -876,6 +881,28 @@ function showMessage(text, tone = "info", duration = 2.6) {
   messageBoxEl.className = `message-box ${tone}`;
 }
 
+function flashObjective(text, duration = 2) {
+  if (!objectiveTextEl) {
+    return;
+  }
+  state.objective.text = text;
+  state.objective.timer = duration;
+  objectiveTextEl.textContent = text;
+  objectiveTextEl.classList.remove("is-hidden");
+}
+
+function updateObjective(delta) {
+  if (!objectiveTextEl || state.objective.timer <= 0) {
+    return;
+  }
+
+  state.objective.timer -= delta;
+  if (state.objective.timer <= 0) {
+    state.objective.timer = 0;
+    objectiveTextEl.classList.add("is-hidden");
+  }
+}
+
 function isTouchUiActive() {
   if (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches) {
     return true;
@@ -956,19 +983,21 @@ function updateHud() {
   floorNameEl.textContent = FLOOR_NAMES[state.player.floor];
 
   if (state.fear < 0.25) {
-    fearLevelEl.textContent = "Calme fragile";
+    if (fearLevelEl) {
+      fearLevelEl.textContent = "Calme fragile";
+    }
   } else if (state.fear < 0.5) {
-    fearLevelEl.textContent = "Peur sourde";
+    if (fearLevelEl) {
+      fearLevelEl.textContent = "Peur sourde";
+    }
   } else if (state.fear < 0.8) {
-    fearLevelEl.textContent = "Panique";
+    if (fearLevelEl) {
+      fearLevelEl.textContent = "Panique";
+    }
   } else {
-    fearLevelEl.textContent = "Terreur pure";
-  }
-
-  if (foundPickups === state.pickups.length) {
-    objectiveTextEl.textContent = "La sortie du toit est ouverte. Trouve-la avant que Roland te rattrape.";
-  } else {
-    objectiveTextEl.textContent = `Recupere les seringues (${foundPickups}/${state.pickups.length}) puis gagne le toit.`;
+    if (fearLevelEl) {
+      fearLevelEl.textContent = "Terreur pure";
+    }
   }
 
   floorCards.forEach((card) => {
@@ -1093,6 +1122,8 @@ function loop(timestamp) {
 }
 
 function update(delta) {
+  updateObjective(delta);
+
   if (state.message.timer > 0) {
     state.message.timer -= delta;
     if (state.message.timer <= 0) {
@@ -1320,7 +1351,11 @@ function updatePickups(delta) {
       pickup.found = true;
       const foundCount = state.pickups.filter((item) => item.found).length;
       playPickupChime();
-      showMessage(`Seringue recuperee. ${foundCount}/${state.pickups.length}.`, "success", 2.4);
+      if (foundCount === state.pickups.length) {
+        showMessage("Derniere seringue recuperee. Gagne le toit avant Roland.", "success", 3.1);
+      } else {
+        showMessage(`Seringue recuperee. ${foundCount}/${state.pickups.length}.`, "success", 2.4);
+      }
       state.roland.stairTimer = Math.max(1.8, state.roland.stairTimer - 2);
     }
   });
