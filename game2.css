@@ -11,6 +11,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -23,6 +24,7 @@ body {
   display: grid;
   place-items: center;
   overflow: hidden;
+  overscroll-behavior: none;
   font-family: "Gill Sans", "Trebuchet MS", sans-serif;
   color: var(--text-main);
   background:
@@ -30,6 +32,22 @@ body {
     radial-gradient(circle at 78% 10%, rgba(92, 113, 104, 0.14), transparent 28%),
     radial-gradient(circle at center, rgba(255, 255, 255, 0.02), transparent 45%),
     linear-gradient(180deg, #121212, #060606 62%, #020202);
+}
+
+button,
+canvas,
+a {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+button:focus,
+button:focus-visible,
+canvas:focus,
+canvas:focus-visible,
+a:focus,
+a:focus-visible {
+  outline: none;
 }
 
 body::before {
@@ -270,27 +288,48 @@ body::before {
 
 .touch-controls {
   display: none;
-  margin-top: 16px;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  transform: translateX(-50%);
+  z-index: 18;
 }
 
-.dpad {
+.touch-pad {
   display: grid;
+  grid-template-columns: 68px 96px 68px;
+  grid-template-rows: 68px 96px 68px;
   gap: 10px;
+  align-items: center;
+  justify-items: center;
 }
 
-.dpad-row {
-  display: flex;
-  gap: 10px;
-}
-
-.touch-controls button {
-  min-width: 62px;
-  min-height: 62px;
-  border-radius: 18px;
+.nav-button {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
   font-size: 1.4rem;
+  touch-action: manipulation;
+}
+
+.nav-button.up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.nav-button.left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.nav-button.right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.nav-button.down {
+  grid-column: 2;
+  grid-row: 3;
 }
 
 .touch-controls button.pressed {
@@ -302,10 +341,33 @@ body::before {
 }
 
 .action-button {
-  min-width: 142px;
-  min-height: 62px;
-  border-radius: 18px;
-  font-size: 1rem;
+  grid-column: 2;
+  grid-row: 2;
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  min-height: 96px;
+  border-radius: 50%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.action-label {
+  font-size: 1.05rem;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.action-detail {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
 }
 
 .action-button.ready {
@@ -358,8 +420,12 @@ body::before {
 }
 
 @media (max-width: 760px) {
+  .game-shell {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 166px);
+  }
+
   .touch-controls {
-    display: flex;
+    display: block;
   }
 
   #game-canvas {
