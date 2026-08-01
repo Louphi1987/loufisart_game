@@ -3,7 +3,7 @@ const COLS = 16;
 const ROWS = 14;
 
 const FLOOR_NAMES = [
-  "Rez-de-chaussee",
+  "Rez-de-chaussée",
   "Premier étage",
   "Toit technique",
 ];
