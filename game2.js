@@ -1036,7 +1036,7 @@ function finishGame(win) {
     audioState.soundtrack.volume = 0.1;
     showMessage("Tu as quitté l'immeuble. Roland hurle dans l'escalier derrière toi.", "success", 8);
     showOverlay(
-      "Tu as survécu",
+      "Tu as survécu! Bien joué!",
       "Les trois seringues sont en ta possession. Le toit s'est finalement ouvert et Roland est reste prisonnier dans la cage d'escalier.",
       "Rejouer",
       {
