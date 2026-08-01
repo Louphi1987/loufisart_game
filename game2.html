@@ -21,10 +21,6 @@
             <span class="hud-label">Etage</span>
             <strong id="floor-name">Rez-de-chaussee</strong>
           </div>
-          <div class="hud-pill">
-            <span class="hud-label">Terreur</span>
-            <strong id="fear-level">Calme fragile</strong>
-          </div>
         </div>
 
         <button id="restart-button" class="ghost-button" type="button">
@@ -33,14 +29,10 @@
       </header>
 
       <p id="objective-text" class="objective-line">
-        Recuperer les trois seringues et atteindre la sortie du toit.
+        Recupere les seringues (0/3) puis gagne le toit.
       </p>
 
       <section class="canvas-frame">
-        <div id="message-box" class="message-box info">
-          Roland est quelque part dans les etages.
-        </div>
-
         <canvas
           id="game-canvas"
           width="768"
@@ -86,6 +78,10 @@
           <button class="nav-button down" type="button" data-key="ArrowDown">▼</button>
         </div>
       </section>
+
+      <div id="message-box" class="message-box info">
+        Roland est quelque part dans les etages.
+      </div>
 
       <section class="sr-only" aria-hidden="true">
         <div class="floor-stack">
