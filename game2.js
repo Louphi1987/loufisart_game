@@ -4,7 +4,7 @@ const ROWS = 14;
 
 const FLOOR_NAMES = [
   "Rez-de-chaussee",
-  "Premier etage",
+  "Premier étage",
   "Toit technique",
 ];
 
@@ -179,7 +179,7 @@ const BASE_PICKUP_SPAWNS = {
 };
 
 const HAUNTING_MESSAGES = [
-  "Un neons hurle au-dessus de toi.",
+  "Un néon hurle au-dessus de toi.",
   "Quelque chose gratte dans les gaines.",
   "L'air se refroidit brusquement.",
   "Des pas glissent dans l'escalier.",
@@ -955,7 +955,7 @@ function getInteractionContext() {
       buttonClass: allPickupsFound ? "ready exit-ready" : "ready",
       hint: allPickupsFound
         ? `${touchLabel} pour ouvrir la porte du toit`
-        : "La porte du toit reste fermee sans toutes les seringues",
+        : "La porte du toit reste fermée sans toutes les seringues",
       tileType: "E",
     };
   }
@@ -1034,14 +1034,14 @@ function finishGame(win) {
   if (win) {
     playTone({ type: "sine", frequency: 420, frequencyEnd: 620, gain: 0.035, decay: 0.48 });
     audioState.soundtrack.volume = 0.1;
-    showMessage("Tu as quitte l'immeuble. Roland hurle dans l'escalier derriere toi.", "success", 8);
+    showMessage("Tu as quitté l'immeuble. Roland hurle dans l'escalier derrière toi.", "success", 8);
     showOverlay(
-      "Tu as survecu",
+      "Tu as survécu",
       "Les trois seringues sont en ta possession. Le toit s'est finalement ouvert et Roland est reste prisonnier dans la cage d'escalier.",
       "Rejouer",
       {
         storyHref: "https://loufisart.netlify.app/",
-        storyLabel: "Roland, decouvre son histoire",
+        storyLabel: "Roland, découvre son histoire",
       },
     );
   } else {
@@ -1049,8 +1049,8 @@ function finishGame(win) {
     audioState.soundtrack.volume = 0.06;
     showMessage("You are trapped! Try again!", "alert", 8);
     showOverlay(
-      "Roland t'a trouve",
-      "Ton souffle s'arrete net dans le couloir. Reprends depuis le hall et tente une autre route.",
+      "Roland t'a trouvé",
+      "Ton souffle s'arrête net dans le couloir. Reprends depuis le hall et tente une autre route.",
       "Rejouer",
     );
   }
@@ -1080,7 +1080,7 @@ function attemptInteract() {
     if (foundPickups === state.pickups.length) {
       finishGame(true);
     } else {
-      showMessage("La porte du toit resiste encore. Il manque des seringues.", "alert", 2.8);
+      showMessage("La porte du toit résiste encore. Il manque des seringues.", "alert", 2.8);
     }
   }
 }
@@ -1101,7 +1101,7 @@ function movePlayerToFloor(nextFloor) {
   updateExploration();
   updateHud();
   playStairCreak();
-  showMessage(`Tu changes d'etage. ${FLOOR_NAMES[nextFloor]}.`, "info", 2.2);
+  showMessage(`Tu changes d'étage. ${FLOOR_NAMES[nextFloor]}.`, "info", 2.2);
 }
 
 function loop(timestamp) {
@@ -1127,7 +1127,7 @@ function update(delta) {
   if (state.message.timer > 0) {
     state.message.timer -= delta;
     if (state.message.timer <= 0) {
-      showMessage("Ecoute l'immeuble. Roland ecoute aussi.", "info", 1.6);
+      showMessage("Ecoute l'immeuble. Roland écoute aussi.", "info", 1.6);
       state.message.timer = 0;
     }
   }
@@ -1236,7 +1236,7 @@ function shiftRolandFloorTowardPlayer() {
 
   if (nextFloor === state.player.floor) {
     playDoorSlam(0.72);
-    showMessage("Des pas grincent dans l'escalier. Roland a change d'etage.", "alert", 2.6);
+    showMessage("Des pas grincent dans l'escalier. Roland a change d'étage.", "alert", 2.6);
   }
 }
 
@@ -1352,9 +1352,9 @@ function updatePickups(delta) {
       const foundCount = state.pickups.filter((item) => item.found).length;
       playPickupChime();
       if (foundCount === state.pickups.length) {
-        showMessage("Derniere seringue recuperee. Gagne le toit avant Roland.", "success", 3.1);
+        showMessage("Dernière seringue récupérée. Gagne le toit avant Roland.", "success", 3.1);
       } else {
-        showMessage(`Seringue recuperee. ${foundCount}/${state.pickups.length}.`, "success", 2.4);
+        showMessage(`Seringue récupérée. ${foundCount}/${state.pickups.length}.`, "success", 2.4);
       }
       state.roland.stairTimer = Math.max(1.8, state.roland.stairTimer - 2);
     }
@@ -2313,8 +2313,8 @@ loadImages()
   .catch((error) => {
     showOverlay(
       "Chargement impossible",
-      "Le decor s'est bien prepare, mais un element du jeu n'a pas pu etre charge. Verifie les fichiers du dossier Mix.",
-      "Reessayer",
+      "Le décor s'est bien préparé, mais un élément du jeu n'a pas pu etre charge. Vérifie les fichiers du dossier.",
+      "Réessayer",
     );
     showMessage(error.message, "alert", 8);
   });
