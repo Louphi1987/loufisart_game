@@ -213,6 +213,8 @@ const overlayButtonEl = document.querySelector("#overlay-button");
 const overlayStoryLinkEl = document.querySelector("#overlay-story-link");
 const restartButtonEl = document.querySelector("#restart-button");
 const interactButtonEl = document.querySelector("#interact-button");
+const interactLabelEl = document.querySelector("#interact-label");
+const interactDetailEl = document.querySelector("#interact-detail");
 
 const assets = {
   player: {
@@ -882,24 +884,27 @@ function isTouchUiActive() {
 }
 
 function getInteractionContext() {
+  const touchMode = isTouchUiActive();
   if (!state.running) {
     return {
-      label: "Entrer",
-      buttonClass: "",
-      hint: "Touche pour entrer dans l'immeuble",
+      label: touchMode ? "TAP" : "Entrer",
+      detail: "Entrer",
+      buttonClass: "ready",
+      hint: touchMode ? "Tape pour entrer dans l'immeuble" : "Appuie pour entrer dans l'immeuble",
       tileType: "",
     };
   }
 
   const tile = worldToTile(state.player.x, state.player.y - 18);
   const currentTile = getTile(state.player.floor, tile.col, tile.row);
-  const touchLabel = isTouchUiActive() ? "Touche" : "Appuie sur E";
+  const touchLabel = touchMode ? "Tape" : "Appuie sur E";
   const foundPickups = state.pickups.filter((pickup) => pickup.found).length;
   const allPickupsFound = foundPickups === state.pickups.length;
 
   if (currentTile === "U") {
     return {
-      label: "Monter",
+      label: touchMode ? "TAP" : "Monter",
+      detail: "Monter",
       buttonClass: "ready",
       hint: `${touchLabel} pour monter l'escalier`,
       tileType: "U",
@@ -908,7 +913,8 @@ function getInteractionContext() {
 
   if (currentTile === "N") {
     return {
-      label: "Descendre",
+      label: touchMode ? "TAP" : "Descendre",
+      detail: "Descendre",
       buttonClass: "ready",
       hint: `${touchLabel} pour descendre l'escalier`,
       tileType: "N",
@@ -917,7 +923,8 @@ function getInteractionContext() {
 
   if (currentTile === "E") {
     return {
-      label: allPickupsFound ? "Sortir" : "Sortie",
+      label: touchMode ? "TAP" : allPickupsFound ? "Sortir" : "Sortie",
+      detail: allPickupsFound ? "Sortir" : "Sortie",
       buttonClass: allPickupsFound ? "ready exit-ready" : "ready",
       hint: allPickupsFound
         ? `${touchLabel} pour ouvrir la porte du toit`
@@ -927,7 +934,8 @@ function getInteractionContext() {
   }
 
   return {
-    label: isTouchUiActive() ? "Tap" : "Interagir",
+    label: touchMode ? "TAP" : "Interagir",
+    detail: "Action",
     buttonClass: "",
     hint: "",
     tileType: "",
@@ -936,7 +944,8 @@ function getInteractionContext() {
 
 function updateInteractButton() {
   const context = getInteractionContext();
-  interactButtonEl.textContent = context.label;
+  interactLabelEl.textContent = context.label;
+  interactDetailEl.textContent = context.detail;
   interactButtonEl.className = `action-button${context.buttonClass ? ` ${context.buttonClass}` : ""}`;
   interactButtonEl.setAttribute("aria-label", context.hint || context.label);
 }
