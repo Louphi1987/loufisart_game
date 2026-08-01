@@ -75,17 +75,16 @@
       </section>
 
       <section class="touch-controls" aria-label="Controles tactiles">
-        <div class="dpad">
-          <button type="button" data-key="ArrowUp">▲</button>
-          <div class="dpad-row">
-            <button type="button" data-key="ArrowLeft">◀</button>
-            <button type="button" data-key="ArrowDown">▼</button>
-            <button type="button" data-key="ArrowRight">▶</button>
-          </div>
+        <div class="touch-pad">
+          <button class="nav-button up" type="button" data-key="ArrowUp">▲</button>
+          <button class="nav-button left" type="button" data-key="ArrowLeft">◀</button>
+          <button id="interact-button" class="action-button" type="button">
+            <span id="interact-label" class="action-label">TAP</span>
+            <span id="interact-detail" class="action-detail">Action</span>
+          </button>
+          <button class="nav-button right" type="button" data-key="ArrowRight">▶</button>
+          <button class="nav-button down" type="button" data-key="ArrowDown">▼</button>
         </div>
-        <button id="interact-button" class="action-button" type="button">
-          Interagir
-        </button>
       </section>
 
       <section class="sr-only" aria-hidden="true">
@@ -100,4 +99,3 @@
     <script src="./game2.js"></script>
   </body>
 </html>
-
